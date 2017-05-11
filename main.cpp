@@ -45,6 +45,17 @@ using namespace fcl;
 
 int main( int argc, char *argv[] )
 {
+
+    std::string ipaddress( "192.168.1.70" );
+    std::string port( "2368" );
+    std::string pcap;
+    double resolution = 0.1, voxel_leaf_size=0.1;
+    int prev, actual = 0, use_sor = 1, sor_num_neighbors = 10;
+    double tf[3] = {0,0,0}, box_size[3] = {0,0,0};
+
+    int cnt_collisions = 0;
+    test::Timer timer;
+
     // Command-Line Argument Parsing
     if( pcl::console::find_switch( argc, argv, "-help" ) || argc < 9 ){
         std::cout << "usage: " << argv[0]
@@ -61,16 +72,6 @@ int main( int argc, char *argv[] )
         return 0;
     }
 
-    std::string ipaddress( "192.168.1.70" );
-    std::string port( "2368" );
-    std::string pcap;
-
-    double resolution = 0.1, voxel_leaf_size=0.1;
-    int prev, actual = 0, use_sor = 1, sor_num_neighbors = 10, cnt_collisions = 0;
-    double tf[3] = {0,0,0}, box_size[3] = {0,0,0};
-
-    test::Timer timer;
-
     pcl::console::parse_argument( argc, argv, "-ipaddress", ipaddress );
     pcl::console::parse_argument( argc, argv, "-port", port );
     pcl::console::parse_argument( argc, argv, "-pcap", pcap );
@@ -80,13 +81,6 @@ int main( int argc, char *argv[] )
     pcl::console::parse_argument( argc, argv, "-v", voxel_leaf_size );
     pcl::console::parse_argument( argc, argv, "-s", sor_num_neighbors);
     pcl::console::parse_argument( argc, argv, "-sor", use_sor);
-
-    std::cout << "pcap: " <<  pcap << std::endl;
-    std::cout << "resolution: " <<  resolution << std::endl;
-    for (int i = 0; i < 3; i++)
-    std::cout << "b[" << i << "]: " << box_size[i] << std::endl;
-    for (int i = 0; i < 3; i++)
-    std::cout << "tf[" << i << "]: " << tf[i] << std::endl;
 
     // Point Cloud
     pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud;
@@ -116,18 +110,20 @@ int main( int argc, char *argv[] )
     grabber->start();
 
     while( true ){
-        timer.start();
         std::cout << "\n################################\n";
-
         boost::mutex::scoped_try_lock lock( mutex );
-        if( lock.owns_lock() && cloud ){
-            
-            prev = actual;
-            actual = cd::octomap_distance_test( resolution, voxel_leaf_size, box_size, tf, cloud, use_sor, sor_num_neighbors);
-            if(prev == 0 && actual)
+        if( lock.owns_lock() && cloud )
+        {
+            timer.start(); 
+            if(prev == 1 && actual)
             {
-                usleep(500000);
-            }
+                cnt_collisions++;
+                usleep(1000000);
+                actual = 0;
+            }    
+            prev = actual;
+            // Check collisions between box and map
+            actual = cd::octomap_distance_test( resolution, voxel_leaf_size, box_size, tf, cloud, use_sor, sor_num_neighbors);
             timer.stop();
             std::cout << "Looptime: " << timer.getElapsedTime() << "ms cnt_collisions: " << cnt_collisions;
         }
