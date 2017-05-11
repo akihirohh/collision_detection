@@ -20,11 +20,18 @@ INCLUDE_DIRECTORIES( ${CCD_INCLUDE_DIRS} )
 add_library(test_fcl_utility test_fcl_utility.cpp)
 target_link_libraries(test_fcl_utility fcl)
 
-
-add_executable (collision_detection collision_detection.cpp)
-target_link_libraries (collision_detection
+add_library(collision_detection collision_detection.cpp)
+target_link_libraries(collision_detection
     test_fcl_utility
     ${PCL_LIBRARIES}
     ${OCTOMAP_LIBRARIES}
     ${FCL_LIBRARIES}
     ${CCD_LIBRARIES})
+
+
+add_executable (main main.cpp)
+target_link_libraries (main collision_detection)
+
+add_executable (collision_detection_viewer collision_detection_viewer.cpp)
+target_link_libraries (collision_detection_viewer
+    collision_detection)
