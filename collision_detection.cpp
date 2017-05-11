@@ -50,6 +50,7 @@
 #include <pcl/io/vlp_grabber.h>
 #include <pcl/console/parse.h>
 #include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/filters/voxel_grid.h>
 
 #include <fstream>
 #include <string>
@@ -77,12 +78,26 @@ inline octomap::OcTree* generateOcTree(pcl::PointCloud<pcl::PointXYZI>::ConstPtr
 template <typename S>
 int octomap_distance_test(double resolution, double box_size[3], double tf[3], pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud )
 {
+  std::cout << "\nOCTOMAP_DISTANCE_TEST FCN:\n";
+  test::TStruct t1;
+  test::Timer timer1;
+  timer1.start();
+
   std::vector<CollisionObject<S>*> env;
   Box<double>* box = new Box<double>(box_size[0], box_size[1], box_size[2]);
   fcl::Transform3<S> tf2(fcl::Translation3<S>(fcl::Vector3<S> (tf[0], tf[1], tf[2])));
   env.push_back(new CollisionObject<S>(std::shared_ptr<CollisionGeometry<S>>(box), tf2));
+  timer1.stop();
 
+  std::cout << "Box generation: " << timer1.getElapsedTime() << "ms" << std::endl;
+
+  timer1.start();
   OcTree<S>* tree = new OcTree<S>(std::shared_ptr<const octomap::OcTree>(generateOcTree(cloud,resolution)));
+  timer1.stop();
+
+  std::cout << "Octree generation: " << timer1.getElapsedTime() << "ms" << std::endl;
+
+  timer1.start();
   CollisionObject<S> tree_obj((std::shared_ptr<CollisionGeometry<S>>(tree)));
 
   DynamicAABBTreeCollisionManager<S>* manager = new DynamicAABBTreeCollisionManager<S>();
@@ -92,9 +107,6 @@ int octomap_distance_test(double resolution, double box_size[3], double tf[3], p
   test::CollisionData<S> cdataCollision;
   test::DistanceData<S> cdata;
 
-  test::TStruct t1;
-  test::Timer timer1;
-  timer1.start();
   manager->octree_as_geometry_collide = false;
   manager->octree_as_geometry_distance = false;
   manager->distance(&tree_obj, &cdata, test::defaultDistanceFunction);
@@ -102,12 +114,11 @@ int octomap_distance_test(double resolution, double box_size[3], double tf[3], p
   manager->collide(&tree_obj, &cdataCollision, test::defaultCollisionFunction);
 
   timer1.stop();
-  t1.push_back(timer1.getElapsedTime());
+  std::cout << "collision fcn: " << timer1.getElapsedTime() << "ms" << std::endl;
   delete manager;
 
   std::cout << "cdata.result.min_distance: " << cdata.result.min_distance << std::endl;
   std::cout << "cdata.result.numContacts: " << cdataCollision.result.numContacts() << std::endl;
-  std::cout << "1) octomap overall time: " << t1.overall_time << std::endl;
   return cdataCollision.result.numContacts();  
 }
 
@@ -131,9 +142,11 @@ int main( int argc, char *argv[] )
     std::string port( "2368" );
     std::string pcap;
 
-    double resolution;
+    double resolution = 0.1, voxel_leaf_size=0.1;
     int prev, actual = 0;
     double tf[3] = {0,0,0}, box_size[3] = {0,0,0};
+
+    test::Timer timer;
 
     pcl::console::parse_argument( argc, argv, "-ipaddress", ipaddress );
     pcl::console::parse_argument( argc, argv, "-port", port );
@@ -141,6 +154,7 @@ int main( int argc, char *argv[] )
     pcl::console::parse_argument( argc, argv, "-r", resolution );
     pcl::console::parse_3x_arguments( argc, argv, "-box", box_size[0], box_size[1], box_size[2]);
     pcl::console::parse_3x_arguments( argc, argv, "-tf", tf[0], tf[1], tf[2]);
+    pcl::console::parse_argument( argc, argv, "-v", voxel_leaf_size );
 
     std::cout << "pcap: " <<  pcap << std::endl;
     std::cout << "resolution: " <<  resolution << std::endl;
@@ -151,6 +165,32 @@ int main( int argc, char *argv[] )
 
     // Point Cloud
     pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud;
+    pcl::PointXYZI p;
+    std::vector<double> x,y,z;
+    x.push_back(tf[0]);
+    y.push_back(tf[1]);
+    z.push_back(tf[2]);
+
+    x.push_back(tf[0]);
+    y.push_back(tf[1] + box_size[1]);
+    z.push_back(tf[2] + box_size[2]);
+
+    x.push_back(tf[0]);
+    y.push_back(tf[1]);
+    z.push_back(tf[2] + box_size[2]);
+    
+    x.push_back(tf[0] + box_size[0]);
+    y.push_back(tf[1] + box_size[1]);
+    z.push_back(tf[2] + box_size[2]);
+
+    x.push_back(tf[0] + box_size[0]);
+    y.push_back(tf[1]);
+    z.push_back(tf[2] + box_size[2]);
+
+    x.push_back(tf[0] + box_size[0]);
+    y.push_back(tf[1] + box_size[1]);
+    z.push_back(tf[2]);
+
 
     // PCL Visualizer
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer( new pcl::visualization::PCLVisualizer( "Velodyne Viewer" ) );
@@ -198,29 +238,49 @@ int main( int argc, char *argv[] )
         grabber = boost::shared_ptr<pcl::VLPGrabber>( new pcl::VLPGrabber( boost::asio::ip::address::from_string( ipaddress ), boost::lexical_cast<unsigned short>( port ) ) );
     }
 
+    //Voxel
+    pcl::VoxelGrid< pcl::PointXYZI  > sor;
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZI>);
+
     // Register Callback Function
     boost::signals2::connection connection = grabber->registerCallback( function );
     // Start Grabber
     grabber->start();
-
     while( !viewer->wasStopped() ){
+        timer.start();
+        std::cout << "\n################################\n";
         // Update Viewer
         viewer->spinOnce();
 
         boost::mutex::scoped_try_lock lock( mutex );
         if( lock.owns_lock() && cloud ){
+            /*
             // Update Point Cloud
+            for (size_t i = 0; i < x.size(); ++i)
+            {
+                p.x = x[i];
+                p.y = y[i];
+                p.z = z[i];
+                p.z = 100;
+                cloud->points.push_back(p);
+            }*/
             handler->setInputCloud( cloud );
             if( !viewer->updatePointCloud( cloud, *handler, "cloud" ) ){
                 viewer->addPointCloud( cloud, *handler, "cloud" );
             }
-
+            sor.setInputCloud (cloud);
+            sor.setLeafSize(voxel_leaf_size, voxel_leaf_size, voxel_leaf_size);
+            sor.filter(*cloud_filtered);
+            std::cout << "Number of points : " << cloud->points.size() << " ===> " << cloud_filtered->points.size() << std::endl;
+            
             prev = actual;
-            actual = octomap_distance_test<double>( resolution, box_size, tf, cloud);
+            actual = octomap_distance_test<double>( resolution, box_size, tf, cloud_filtered);
             if(prev == 0 && actual)
             {
                 usleep(500000);
             }
+            timer.stop();
+            std::cout << "Looptime: " << timer.getElapsedTime() << "ms";
         }
     }
 
