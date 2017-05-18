@@ -63,17 +63,20 @@
 
 #include <fcl/config.h>
 #include <fcl/geometry/octree/octree.h>
+#include "fcl/geometry/geometric_shape_to_BVH_model.h"
 #include <fcl/broadphase/broadphase_dynamic_AABB_tree.h>
 #include "test_fcl_utility.h"
+#include <Eigen/Dense>
 
 using namespace fcl;
 
 namespace cd
 {
-  pcl::PointCloud<pcl::PointXYZ>::Ptr createPointCloudFromBox(double box_size[3], double tf[3], int pnts_side);
-  octomap::OcTree* generateOcTree(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, double resolution);
-    int octomap_distance_test(double resolution, double voxel_leaf_size, double box_size[3], double tf[3], pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, int use_sor, int sor_number_neighbors );
+    void createBox(std::vector<CollisionObject<double>*> &env, double box_size[3], double tf[3], double rot[3]);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr createPointCloudFromBox(std::vector<CollisionObject<double>*> env, int n_box, double box_size[3], int pnts_side);
+    octomap::OcTree* generateOcTree(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, double resolution);
+    int octomap_distance_test(double resolution, double voxel_leaf_size, std::vector<CollisionObject<double>*> env , pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, int use_sor, int sor_number_neighbors );
 }
 
-
 #endif
+

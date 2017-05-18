@@ -29,9 +29,8 @@ target_link_libraries(collision_detection
     ${CCD_LIBRARIES})
 
 
-add_executable (main main.cpp)
-target_link_libraries (main collision_detection)
+#add_executable (main main.cpp)
+#target_link_libraries (main collision_detection)
 
 add_executable (collision_detection_viewer collision_detection_viewer.cpp)
-target_link_libraries (collision_detection_viewer
-    collision_detection)
+target_link_libraries (collision_detection_viewer collision_detection)

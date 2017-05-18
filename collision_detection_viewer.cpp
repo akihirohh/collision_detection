@@ -43,15 +43,31 @@
 
 using namespace fcl;
 
+
+
+int n_file = 0;
+
+void saveOcTree(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud2, double resolution)
+{
+    octomap::OcTree* tree = new octomap::OcTree(resolution);
+    for (auto p:cloud->points) tree->updateNode( octomap::point3d(p.x, p.y, p.z), true );
+    tree->updateInnerOccupancy();
+    for (auto p:cloud2->points) tree->updateNode( octomap::point3d(p.x, p.y, p.z), true );
+    tree->updateInnerOccupancy();
+    std::string filename = 't' + std::to_string(n_file) + ".bt";
+    n_file++;
+    tree->writeBinary( filename.c_str() );
+    std::cout << "\noctree saved in file: " << filename << std::endl;;
+}
+
 int main( int argc, char *argv[] )
 {
-
     std::string ipaddress( "192.168.1.70" );
     std::string port( "2368" );
     std::string pcap;
     double resolution = 0.1, voxel_leaf_size=0.1;
     int prev, actual = 0, use_sor = 1, sor_num_neighbors = 10;
-    double tf[3] = {0,0,0}, box_size[3] = {0,0,0};
+    double tf[3] = {0,0,0}, box_size[3] = {0,0,0}, rot[3] = {0,0,0};
 
     int cnt_collisions = 0;
     test::Timer timer;
@@ -78,15 +94,22 @@ int main( int argc, char *argv[] )
     pcl::console::parse_argument( argc, argv, "-r", resolution );
     pcl::console::parse_3x_arguments( argc, argv, "-box", box_size[0], box_size[1], box_size[2]);
     pcl::console::parse_3x_arguments( argc, argv, "-tf", tf[0], tf[1], tf[2]);
+    pcl::console::parse_3x_arguments( argc, argv, "-rot", rot[0], rot[1], rot[2]);
     pcl::console::parse_argument( argc, argv, "-v", voxel_leaf_size );
     pcl::console::parse_argument( argc, argv, "-s", sor_num_neighbors);
     pcl::console::parse_argument( argc, argv, "-sor", use_sor);
 
+    for (int i= 0; i < 3; i++) rot[i] *= M_PI/180;
+
     // Point Cloud
     pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud;
 
+    // Collision Checking Box(es)
+    std::vector<CollisionObject<double>*> boxes;
+    cd::createBox(boxes, box_size, tf, rot);
+
     // Point Cloud to plot collision checking box 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_box = cd::createPointCloudFromBox(box_size, tf, 10);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_box = cd::createPointCloudFromBox(boxes, 0, box_size, 10);
     pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZ> box_color_handler(cloud_box, "z");
 
     // PCL Visualizer
@@ -138,16 +161,16 @@ int main( int argc, char *argv[] )
             }
             viewer->removePointCloud("cloud_box", 0);
             viewer->addPointCloud( cloud_box, box_color_handler, "cloud_box" );
-            
-            if(prev == 1 && actual)
+            prev = actual;
+            // Check collisions between box and map
+            actual = cd::octomap_distance_test( resolution, voxel_leaf_size, boxes, cloud, use_sor, sor_num_neighbors);
+            if(prev == 0 && actual)
             {
+                saveOcTree(cloud, cloud_box, resolution);
                 cnt_collisions++;
                 usleep(500000);
                 actual = 0;
             }
-            prev = actual;
-            // Check collisions between box and map
-            actual = cd::octomap_distance_test( resolution, voxel_leaf_size, box_size, tf, cloud, use_sor, sor_num_neighbors);
             timer.stop();
             std::cout << "Looptime: " << timer.getElapsedTime() << "ms cnt_collisions: " << cnt_collisions;
         }

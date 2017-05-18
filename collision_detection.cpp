@@ -40,97 +40,101 @@
  */
 
 #include "collision_detection.h"
-#include <boost/thread/thread.hpp>
-#include <pcl/common/common_headers.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/io/pcd_io.h>
-
-#include <pcl/console/parse.h>
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl/io/vlp_grabber.h>
-#include <pcl/console/parse.h>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/filters/voxel_grid.h>
-
-#include <fstream>
-#include <string>
-#include <cmath>
-#include <vector>
-
-#include <fcl/config.h>
-#include <fcl/geometry/octree/octree.h>
-#include <fcl/broadphase/broadphase_dynamic_AABB_tree.h>
-#include "test_fcl_utility.h"
 
 using namespace fcl;
 
 namespace cd
 {
+    void createBox(std::vector<CollisionObject<double>*> &env, double box_size[3], double tf[3], double rot[3])
+    {
+        Box<double>* box = new Box<double>(box_size[0], box_size[1], box_size[2]);
+        Matrix3<double> rotation(
+                AngleAxis<double>(rot[0], Vector3<double>::UnitX())
+            * AngleAxis<double>(rot[1], Vector3<double>::UnitY())
+            * AngleAxis<double>(rot[2], Vector3<double>::UnitZ()));
+        fcl::Transform3<double> tf2(fcl::Translation3<double>(fcl::Vector3<double> (tf[0], tf[1], tf[2])));
+        tf2.linear() = rotation;
+        std::cout << "\nRotation: "<< rotation << std::endl;
+
+        env.push_back(new CollisionObject<double>(std::shared_ptr<CollisionGeometry<double>>(box), tf2));
+        std::cout << "getCollisionGeometry:\n" << env[0]->getRotation()<< std::endl << env[0]->getTranslation()<< std::endl << std::endl << env[0]->getAABB().min_<< std::endl << std::endl << env[0]->getAABB().max_ << std::endl;
+    }
+
     // Create PointCloud from user input box
-    pcl::PointCloud<pcl::PointXYZ>::Ptr createPointCloudFromBox(double box_size[3], double tf[3], int pnts_side)
+    pcl::PointCloud<pcl::PointXYZ>::Ptr createPointCloudFromBox(std::vector<CollisionObject<double>*> env, int n_box, double box_size[3], int pnts_side)
     {
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_box (new pcl::PointCloud<pcl::PointXYZ>);
         pcl::PointXYZ p;
         std::vector<double> x,y,z;
+        Vector3<double> translation = env[n_box]->getTranslation();
+        Matrix3<double> rotation = env[n_box]->getRotation();
         
         for (int i = 0; i<= pnts_side; i++ )
         {
-            x.push_back(tf[0] + box_size[0]/pnts_side*i );
-            y.push_back(tf[1]);
-            z.push_back(tf[2]);
+            x.push_back(translation[0] + box_size[0]/pnts_side*i );
+            y.push_back(translation[1]);
+            z.push_back(translation[2]);
 
-            x.push_back(tf[0]);
-            y.push_back(tf[1] + box_size[1]/pnts_side*i );
-            z.push_back(tf[2]);
+            x.push_back(translation[0]);
+            y.push_back(translation[1] + box_size[1]/pnts_side*i );
+            z.push_back(translation[2]);
 
-            x.push_back(tf[0]);
-            y.push_back(tf[1]);
-            z.push_back(tf[2] + box_size[2]/pnts_side*i );
+            x.push_back(translation[0]);
+            y.push_back(translation[1]);
+            z.push_back(translation[2] + box_size[2]/pnts_side*i );
 
-            x.push_back(tf[0] + box_size[0]/pnts_side*i );
-            y.push_back(tf[1] + box_size[1]);
-            z.push_back(tf[2]);
+            x.push_back(translation[0] + box_size[0]/pnts_side*i );
+            y.push_back(translation[1] + box_size[1]);
+            z.push_back(translation[2]);
 
-            x.push_back(tf[0]);
-            y.push_back(tf[1] + box_size[1]);
-            z.push_back(tf[2] + box_size[2]/pnts_side*i );
+            x.push_back(translation[0]);
+            y.push_back(translation[1] + box_size[1]);
+            z.push_back(translation[2] + box_size[2]/pnts_side*i );
 
-            x.push_back(tf[0] + box_size[0]/pnts_side*i );
-            y.push_back(tf[1]);
-            z.push_back(tf[2] + box_size[2]);
+            x.push_back(translation[0] + box_size[0]/pnts_side*i );
+            y.push_back(translation[1]);
+            z.push_back(translation[2] + box_size[2]);
 
-            x.push_back(tf[0]);
-            y.push_back(tf[1] + box_size[1]/pnts_side*i );
-            z.push_back(tf[2] + box_size[2]);
+            x.push_back(translation[0]);
+            y.push_back(translation[1] + box_size[1]/pnts_side*i );
+            z.push_back(translation[2] + box_size[2]);
 
-            x.push_back(tf[0] + box_size[0]);
-            y.push_back(tf[1] + box_size[1]/pnts_side*i );
-            z.push_back(tf[2]);
+            x.push_back(translation[0] + box_size[0]);
+            y.push_back(translation[1] + box_size[1]/pnts_side*i );
+            z.push_back(translation[2]);
 
-            x.push_back(tf[0] + box_size[0]);
-            y.push_back(tf[1]);
-            z.push_back(tf[2] + box_size[2]/pnts_side*i );
+            x.push_back(translation[0] + box_size[0]);
+            y.push_back(translation[1]);
+            z.push_back(translation[2] + box_size[2]/pnts_side*i );
 
-            x.push_back(tf[0] + box_size[0]);
-            y.push_back(tf[1] + box_size[1]);
-            z.push_back(tf[2] + box_size[2]/pnts_side*i );
+            x.push_back(translation[0] + box_size[0]);
+            y.push_back(translation[1] + box_size[1]);
+            z.push_back(translation[2] + box_size[2]/pnts_side*i );
 
-            x.push_back(tf[0] + box_size[0]);
-            y.push_back(tf[1] + box_size[1]/pnts_side*i );
-            z.push_back(tf[2] + box_size[2]);
+            x.push_back(translation[0] + box_size[0]);
+            y.push_back(translation[1] + box_size[1]/pnts_side*i );
+            z.push_back(translation[2] + box_size[2]);
 
-            x.push_back(tf[0] + box_size[0]/pnts_side*i );
-            y.push_back(tf[1] + box_size[1]);
-            z.push_back(tf[2] + box_size[2]);  
+            x.push_back(translation[0] + box_size[0]/pnts_side*i );
+            y.push_back(translation[1] + box_size[1]);
+            z.push_back(translation[2] + box_size[2]);  
         }
+
+        Eigen::MatrixXd translated(3,x.size()), rotated(3,x.size());
+        for (int i = 0; i < x.size(); i++)
+        {
+            translated(0,i) = x[i]; 
+            translated(1,i) = y[i]; 
+            translated(2,i) = z[i]; 
+        }
+        rotated = rotation * translated;
 
         // Update Point Cloud
         for (size_t i = 0; i < x.size(); ++i)
         {
-            p.x = x[i];
-            p.y = y[i];
-            p.z = z[i];
+            p.x = rotated(0,i);
+            p.y = rotated(1,i);
+            p.z = rotated(2,i);
             cloud_box->points.push_back(p);
         }
         return cloud_box;
@@ -147,35 +151,25 @@ namespace cd
         return tree;
     }
 
-    int octomap_distance_test(double resolution, double voxel_leaf_size, double box_size[3], double tf[3], pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, int use_sor, int sor_number_neighbors )
+
+    int octomap_distance_test(double resolution, double voxel_leaf_size, std::vector<CollisionObject<double>*> env , pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, int use_sor, int sor_number_neighbors )
     {
     std::cout << "\nOCTOMAP_DISTANCE_TEST FCN:\n";
+        std::cout << "\n\nenv.size(): " << env.size();
     test::TStruct t1;
     test::Timer timer1;
-    timer1.start();
 
-    std::vector<CollisionObject<double>*> env;
-    Box<double>* box = new Box<double>(box_size[0], box_size[1], box_size[2]);
-    fcl::Transform3<double> tf2(fcl::Translation3<double>(fcl::Vector3<double> (tf[0], tf[1], tf[2])));
-    env.push_back(new CollisionObject<double>(std::shared_ptr<CollisionGeometry<double>>(box), tf2));
-    timer1.stop();
-    std::cout << "Box generation: " << timer1.getElapsedTime() << "ms" << std::endl;
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZI>);
-
     timer1.start();
-
-        //Voxel
-        pcl::VoxelGrid< pcl::PointXYZI  > vg;
-
-        vg.setInputCloud (cloud);
-        vg.setLeafSize(voxel_leaf_size, voxel_leaf_size, voxel_leaf_size);
-        vg.filter(*cloud_filtered);
-        std::cout << "Number of points : " << cloud->points.size() << " ===> " << cloud_filtered->points.size() << std::endl;
-
-
-
-        timer1.stop();
+    //Voxel
+    pcl::VoxelGrid< pcl::PointXYZI  > vg;
+    vg.setInputCloud (cloud);
+    vg.setLeafSize(voxel_leaf_size, voxel_leaf_size, voxel_leaf_size);
+    vg.filter(*cloud_filtered);
+    std::cout << "Number of points : " << cloud->points.size() << " ===> " << cloud_filtered->points.size() << std::endl;
+    timer1.stop();    
     std::cout << "Voxel: " << timer1.getElapsedTime() << "ms" << std::endl;
+
     if (use_sor)
     {
         timer1.start();
@@ -188,15 +182,14 @@ namespace cd
         timer1.stop();
         std::cout << "StatisticalOutlierRemoval: " << timer1.getElapsedTime() << "ms" << std::endl;
     }
+
     timer1.start();
     OcTree<double>* tree = new OcTree<double>(std::shared_ptr<const octomap::OcTree>(generateOcTree(cloud_filtered,resolution)));
     timer1.stop();
-
     std::cout << "Octree generation: " << timer1.getElapsedTime() << "ms" << std::endl;
 
     timer1.start();
     CollisionObject<double> tree_obj((std::shared_ptr<CollisionGeometry<double>>(tree)));
-
     DynamicAABBTreeCollisionManager<double>* manager = new DynamicAABBTreeCollisionManager<double>();
     manager->registerObjects(env);
     manager->setup();
