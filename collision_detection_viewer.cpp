@@ -43,23 +43,6 @@
 
 using namespace fcl;
 
-
-
-int n_file = 0;
-
-void saveOcTree(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud2, double resolution)
-{
-    octomap::OcTree* tree = new octomap::OcTree(resolution);
-    for (auto p:cloud->points) tree->updateNode( octomap::point3d(p.x, p.y, p.z), true );
-    tree->updateInnerOccupancy();
-    for (auto p:cloud2->points) tree->updateNode( octomap::point3d(p.x, p.y, p.z), true );
-    tree->updateInnerOccupancy();
-    std::string filename = 't' + std::to_string(n_file) + ".bt";
-    n_file++;
-    tree->writeBinary( filename.c_str() );
-    std::cout << "\noctree saved in file: " << filename << std::endl;;
-}
-
 int main( int argc, char *argv[] )
 {
     std::string ipaddress( "192.168.1.70" );
@@ -71,20 +54,11 @@ int main( int argc, char *argv[] )
 
     int cnt_collisions = 0;
     test::Timer timer;
+    test::TStruct t;
 
     // Command-Line Argument Parsing
     if( pcl::console::find_switch( argc, argv, "-help" ) || argc < 9 ){
-        std::cout << "usage: " << argv[0]
-            << "\n-ipaddress # \t\t= Puck's IP "
-            << "\n-port # \t\t= Puck's port"
-            << "\n-pcap *.pcap \t\t= PCAP recorded file path"
-            << "\n-r # \t\t\t= octomap resolution"
-            << "\n-box x,y,z \t\t= x,y,z box side values" 
-            << "\n-tf x,y,z \t\t= x,y,z box translation"
-            << "\n-s # \t\t\t= number of neighbors for StatisticalOutlierRemoval"
-            << "\n-sor #\t\t\t= use SOR (1) or not (0)"
-            << " [-help]"
-            << std::endl;
+        cd::printHelp(argv);
         return 0;
     }
 
@@ -103,12 +77,11 @@ int main( int argc, char *argv[] )
 
     // Point Cloud
     pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud;
-
     // Collision Checking Box(es)
     std::vector<CollisionObject<double>*> boxes;
     cd::createBox(boxes, box_size, tf, rot);
 
-    // Point Cloud to plot collision checking box 
+   // Point Cloud to plot collision checking box 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_box = cd::createPointCloudFromBox(boxes, 0, box_size, 10);
     pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZ> box_color_handler(cloud_box, "z");
 
@@ -166,13 +139,14 @@ int main( int argc, char *argv[] )
             actual = cd::octomap_distance_test( resolution, voxel_leaf_size, boxes, cloud, use_sor, sor_num_neighbors);
             if(prev == 0 && actual)
             {
-                saveOcTree(cloud, cloud_box, resolution);
                 cnt_collisions++;
+                cd::saveOcTree(cloud, cloud_box, resolution, cnt_collisions);
                 usleep(500000);
                 actual = 0;
-            }
+            }            
             timer.stop();
-            std::cout << "Looptime: " << timer.getElapsedTime() << "ms cnt_collisions: " << cnt_collisions;
+            t.push_back(timer.getElapsedTime());
+            std::cout << "Looptime: " << timer.getElapsedTime() << "ms cnt_collisions: " << cnt_collisions << " overalltime: " << t.overall_time << "ms\n";
         }
     }
 

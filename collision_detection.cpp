@@ -36,7 +36,7 @@
 /*
  * vlp_grabber code from http://unanancyowen.com/en/pcl-with-velodyne/
  * octomap usage from https://github.com/gaoxiang12/octomap_tutor
- * modified from fcl example teste_fcl_octomap_distance
+ * modified from fcl example a_fcl_octomap_distance
  */
 
 #include "collision_detection.h"
@@ -52,12 +52,16 @@ namespace cd
                 AngleAxis<double>(rot[0], Vector3<double>::UnitX())
             * AngleAxis<double>(rot[1], Vector3<double>::UnitY())
             * AngleAxis<double>(rot[2], Vector3<double>::UnitZ()));
-        fcl::Transform3<double> tf2(fcl::Translation3<double>(fcl::Vector3<double> (tf[0], tf[1], tf[2])));
+        fcl::Transform3<double> tf2 = fcl::Transform3<double>::Identity();
+        tf2.translation() = fcl::Vector3<double>(tf[0], tf[1], tf[2]);
         tf2.linear() = rotation;
-        std::cout << "\nRotation: "<< rotation << std::endl;
 
-        env.push_back(new CollisionObject<double>(std::shared_ptr<CollisionGeometry<double>>(box), tf2));
-        std::cout << "getCollisionGeometry:\n" << env[0]->getRotation()<< std::endl << env[0]->getTranslation()<< std::endl << std::endl << env[0]->getAABB().min_<< std::endl << std::endl << env[0]->getAABB().max_ << std::endl;
+        Box<double> box2(box_size[0], box_size[1], box_size[2]);
+        BVHModel<OBBRSS<double>>* model = new BVHModel<OBBRSS<double>>();
+        fcl::generateBVHModel(*model, box2,  Transform3<double>::Identity());
+
+        //env.push_back(new CollisionObject<double>(std::shared_ptr<CollisionGeometry<double>>(box), tf2));
+        env.push_back(new CollisionObject<double>(std::shared_ptr<CollisionGeometry<double>>(model), tf2));
     }
 
     // Create PointCloud from user input box
@@ -65,76 +69,49 @@ namespace cd
     {
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_box (new pcl::PointCloud<pcl::PointXYZ>);
         pcl::PointXYZ p;
-        std::vector<double> x,y,z;
         Vector3<double> translation = env[n_box]->getTranslation();
         Matrix3<double> rotation = env[n_box]->getRotation();
-        
-        for (int i = 0; i<= pnts_side; i++ )
+        int total_length = 12*pnts_side - 4;
+        Eigen::MatrixXd translated(3,total_length);
+        Eigen::MatrixXd rotated(3,total_length);
+        Eigen::MatrixXd a(3,total_length);
+        int k = -1;
+        for (double i = - box_size[0]/2; i <= box_size[0]/2; i+= box_size[0]/pnts_side)
         {
-            x.push_back(translation[0] + box_size[0]/pnts_side*i );
-            y.push_back(translation[1]);
-            z.push_back(translation[2]);
-
-            x.push_back(translation[0]);
-            y.push_back(translation[1] + box_size[1]/pnts_side*i );
-            z.push_back(translation[2]);
-
-            x.push_back(translation[0]);
-            y.push_back(translation[1]);
-            z.push_back(translation[2] + box_size[2]/pnts_side*i );
-
-            x.push_back(translation[0] + box_size[0]/pnts_side*i );
-            y.push_back(translation[1] + box_size[1]);
-            z.push_back(translation[2]);
-
-            x.push_back(translation[0]);
-            y.push_back(translation[1] + box_size[1]);
-            z.push_back(translation[2] + box_size[2]/pnts_side*i );
-
-            x.push_back(translation[0] + box_size[0]/pnts_side*i );
-            y.push_back(translation[1]);
-            z.push_back(translation[2] + box_size[2]);
-
-            x.push_back(translation[0]);
-            y.push_back(translation[1] + box_size[1]/pnts_side*i );
-            z.push_back(translation[2] + box_size[2]);
-
-            x.push_back(translation[0] + box_size[0]);
-            y.push_back(translation[1] + box_size[1]/pnts_side*i );
-            z.push_back(translation[2]);
-
-            x.push_back(translation[0] + box_size[0]);
-            y.push_back(translation[1]);
-            z.push_back(translation[2] + box_size[2]/pnts_side*i );
-
-            x.push_back(translation[0] + box_size[0]);
-            y.push_back(translation[1] + box_size[1]);
-            z.push_back(translation[2] + box_size[2]/pnts_side*i );
-
-            x.push_back(translation[0] + box_size[0]);
-            y.push_back(translation[1] + box_size[1]/pnts_side*i );
-            z.push_back(translation[2] + box_size[2]);
-
-            x.push_back(translation[0] + box_size[0]/pnts_side*i );
-            y.push_back(translation[1] + box_size[1]);
-            z.push_back(translation[2] + box_size[2]);  
+            a.col(++k) << i, -box_size[1]/2, -box_size[2]/2;
+            a.col(++k) << i,  box_size[1]/2, -box_size[2]/2;
+            a.col(++k) << i, -box_size[1]/2,  box_size[2]/2;
+            a.col(++k) << i,  box_size[1]/2,  box_size[2]/2;
+           
+        }       
+        for (double i = - box_size[1]/2 + box_size[1]/pnts_side; i < box_size[1]/2; i += box_size[1]/pnts_side)
+        {
+            a.col(++k) << -box_size[0]/2, i, -box_size[2]/2;
+            a.col(++k) <<  box_size[0]/2, i, -box_size[2]/2;
+            a.col(++k) << -box_size[0]/2, i,  box_size[2]/2;
+            a.col(++k) <<  box_size[0]/2, i,  box_size[2]/2;
+        }
+        for (double i = - box_size[2]/2 + box_size[2]/pnts_side; i < box_size[2]/2; i += box_size[2]/pnts_side)
+        {
+            a.col(++k) << -box_size[0]/2, -box_size[1]/2, i;
+            a.col(++k) <<  box_size[0]/2, -box_size[1]/2, i;
+            a.col(++k) << -box_size[0]/2,  box_size[1]/2, i;
+            a.col(++k) <<  box_size[0]/2,  box_size[1]/2, i;
         }
 
-        Eigen::MatrixXd translated(3,x.size()), rotated(3,x.size());
-        for (int i = 0; i < x.size(); i++)
+        rotated = rotation * a;
+        for (int i = 0; i < total_length; i++)
         {
-            translated(0,i) = x[i]; 
-            translated(1,i) = y[i]; 
-            translated(2,i) = z[i]; 
+            translated(0,i) = rotated(0,i) + translation[0]; 
+            translated(1,i) = rotated(1,i) + translation[1]; 
+            translated(2,i) = rotated(2,i) + translation[2]; 
         }
-        rotated = rotation * translated;
-
         // Update Point Cloud
-        for (size_t i = 0; i < x.size(); ++i)
+        for (size_t i = 0; i < total_length; ++i)
         {
-            p.x = rotated(0,i);
-            p.y = rotated(1,i);
-            p.z = rotated(2,i);
+            p.x = translated(0,i);
+            p.y = translated(1,i);
+            p.z = translated(2,i);
             cloud_box->points.push_back(p);
         }
         return cloud_box;
@@ -145,17 +122,28 @@ namespace cd
     {
         octomap::OcTree* tree = new octomap::OcTree(resolution);
         for (auto p:cloud->points) tree->updateNode( octomap::point3d(p.x, p.y, p.z), true );
-
         tree->updateInnerOccupancy();
-        //tree->writeBinary( "t3.bt");
         return tree;
     }
 
+    void printHelp(char *argv[])
+    {
+        std::cout << "usage: " << argv[0]
+            << "\n-ipaddress # \t\t= Puck's IP "
+            << "\n-port # \t\t= Puck's port"
+            << "\n-pcap *.pcap \t\t= PCAP recorded file path"
+            << "\n-r # \t\t\t= octomap resolution"
+            << "\n-box x,y,z \t\t= x,y,z box side values" 
+            << "\n-tf x,y,z \t\t= x,y,z box translation"
+            << "\n-s # \t\t\t= number of neighbors for StatisticalOutlierRemoval"
+            << "\n-sor #\t\t\t= use SOR (1) or not (0)"
+            << " [-help]"
+            << std::endl;
+    }
 
     int octomap_distance_test(double resolution, double voxel_leaf_size, std::vector<CollisionObject<double>*> env , pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, int use_sor, int sor_number_neighbors )
     {
     std::cout << "\nOCTOMAP_DISTANCE_TEST FCN:\n";
-        std::cout << "\n\nenv.size(): " << env.size();
     test::TStruct t1;
     test::Timer timer1;
 
@@ -199,7 +187,7 @@ namespace cd
 
     manager->octree_as_geometry_collide = true;
     manager->octree_as_geometry_distance = true;
-    manager->distance(&tree_obj, &cdata, test::defaultDistanceFunction);
+    //manager->distance(&tree_obj, &cdata, test::defaultDistanceFunction);
 
     manager->collide(&tree_obj, &cdataCollision, test::defaultCollisionFunction);
 
@@ -207,8 +195,21 @@ namespace cd
     std::cout << "collision fcn: " << timer1.getElapsedTime() << "ms" << std::endl;
     delete manager;
 
-    std::cout << "cdata.result.min_distance: " << cdata.result.min_distance << std::endl;
+    //std::cout << "cdata.result.min_distance: " << cdata.result.min_distance << std::endl;
     std::cout << "cdata.result.numContacts: " << cdataCollision.result.numContacts() << std::endl;
     return cdataCollision.result.numContacts();  
     }
+
+    void saveOcTree(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud, pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud2, double resolution, int n_file)
+    {
+        octomap::OcTree* tree = new octomap::OcTree(resolution);
+        for (auto p:cloud->points) tree->updateNode( octomap::point3d(p.x, p.y, p.z), true );
+        tree->updateInnerOccupancy();
+        for (auto p:cloud2->points) tree->updateNode( octomap::point3d(p.x, p.y, p.z), true );
+        tree->updateInnerOccupancy();
+        std::string filename = 't' + std::to_string(n_file) + ".bt";
+        tree->writeBinary( filename.c_str() );
+        std::cout << "\noctree saved in file: " << filename << std::endl;;
+    }
 }
+
