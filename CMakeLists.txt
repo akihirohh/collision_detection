@@ -34,3 +34,9 @@ target_link_libraries(collision_detection
 
 add_executable (collision_detection_viewer collision_detection_viewer.cpp)
 target_link_libraries (collision_detection_viewer collision_detection)
+
+add_executable (pcd_write pcd_write.cpp)
+target_link_libraries (pcd_write ${PCL_LIBRARIES})
+
+add_executable (save2pcd    save_to_pcd.cpp)
+target_link_libraries (save2pcd collision_detection)

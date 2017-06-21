@@ -40,6 +40,7 @@
  */
 
 #include "collision_detection.h"
+#include <pcl/io/pcd_io.h>
 
 using namespace fcl;
 
@@ -49,12 +50,16 @@ int main( int argc, char *argv[] )
     std::string port( "2368" );
     std::string pcap;
     double resolution = 0.1, voxel_leaf_size=0.1;
-    int prev, actual = 0, use_sor = 1, sor_num_neighbors = 10;
+    int prev, actual = 0, use_sor = 1, sor_num_neighbors = 10, save_pcd = 0;
     double tf[3] = {0,0,0}, box_size[3] = {0,0,0}, rot[3] = {0,0,0};
 
     int cnt_collisions = 0;
     test::Timer timer;
     test::TStruct t;
+
+    pcl::PCDWriter w;
+    std::string basename = "lidar";
+    unsigned int cnt = 0;
 
     // Command-Line Argument Parsing
     if( pcl::console::find_switch( argc, argv, "-help" ) || argc < 9 ){
@@ -72,6 +77,7 @@ int main( int argc, char *argv[] )
     pcl::console::parse_argument( argc, argv, "-v", voxel_leaf_size );
     pcl::console::parse_argument( argc, argv, "-s", sor_num_neighbors);
     pcl::console::parse_argument( argc, argv, "-sor", use_sor);
+    pcl::console::parse_argument( argc, argv, "-pcd", save_pcd);
 
     for (int i= 0; i < 3; i++) rot[i] *= M_PI/180;
 
@@ -126,7 +132,7 @@ int main( int argc, char *argv[] )
         viewer->spinOnce();
         boost::mutex::scoped_try_lock lock( mutex );
         if( lock.owns_lock() && cloud )
-        {         
+        {      
             timer.start();   
             handler->setInputCloud( cloud );
             if( !viewer->updatePointCloud( cloud, *handler, "cloud" ) ){
@@ -145,6 +151,15 @@ int main( int argc, char *argv[] )
                 actual = 0;
             }            
             timer.stop();
+            if(save_pcd)
+            {
+                cnt++;  
+                timer.start();   
+                w.writeBinaryCompressed(basename + std::to_string(cnt) + ".pcd", *cloud);
+                timer.stop(); 
+                std::cout << "Write PCD: " << timer.getElapsedTime() << "ms" << std::endl;
+            }
+            
             t.push_back(timer.getElapsedTime());
             std::cout << "Looptime: " << timer.getElapsedTime() << "ms cnt_collisions: " << cnt_collisions << " overalltime: " << t.overall_time << "ms\n";
         }

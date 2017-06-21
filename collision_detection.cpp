@@ -136,7 +136,8 @@ namespace cd
             << "\n-box x,y,z \t\t= x,y,z box side values" 
             << "\n-tf x,y,z \t\t= x,y,z box translation"
             << "\n-s # \t\t\t= number of neighbors for StatisticalOutlierRemoval"
-            << "\n-sor #\t\t\t= use SOR (1) or not (0)"
+            << "\n-sor # \t\t\t= use SOR (1) or not (0)"
+            << "\n-pcd # \t\t\t= save PCD files (1) or not (0)"
             << " [-help]"
             << std::endl;
     }
