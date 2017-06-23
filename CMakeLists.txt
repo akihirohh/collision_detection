@@ -40,3 +40,6 @@ target_link_libraries (pcd_write ${PCL_LIBRARIES})
 
 add_executable (save2pcd    save_to_pcd.cpp)
 target_link_libraries (save2pcd collision_detection)
+
+add_executable (simple    simple.cpp)
+target_link_libraries (simple ${PCL_LIBRARIES})
