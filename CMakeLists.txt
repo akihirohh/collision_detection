@@ -43,3 +43,5 @@ target_link_libraries (save2pcd collision_detection)
 
 add_executable (simple    simple.cpp)
 target_link_libraries (simple ${PCL_LIBRARIES})
+add_executable (import    importXYZ.cpp)
+target_link_libraries (import ${PCL_LIBRARIES})

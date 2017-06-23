@@ -48,16 +48,16 @@
 #include <pcl/point_types.h>
 #include <pcl/io/vlp_grabber.h>
 #include <pcl/console/parse.h>
+/*
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/statistical_outlier_removal.h>
-#include <pcl/io/pcd_io.h>
 #include <Eigen/Dense>
-
+*/
 #include <fstream>
 #include <string>
-#include <cmath>
-#include <vector>
+//#include <cmath>
+//#include <vector>
 
 
 int main( int argc, char *argv[] )
