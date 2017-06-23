@@ -64,5 +64,10 @@ int main( int argc, char *argv[] )
         cloud.push_back (pcl::PointXYZ (a,b,c) );
     }
     w.writeBinaryCompressed(basename + std::to_string(cnt) + ".pcd", cloud);
+    std::cout << "Width: " << cloud.width << " Height:" << cloud.height << std::endl;
+    cloud.clear(); 
+    std::cout << "Width: " << cloud.width << " Height:" << cloud.height << std::endl;
+
+    std::cout << "Use pcl/build/bin/pcl_viewer to visualize PCD image";
     return 0;
 }
